@@ -1,3 +1,4 @@
+PROJECT_SOURCES = project.v pwm_peripheral.v "spi peripheral"
 # Makefile
 # See https://docs.cocotb.org/en/stable/quickstart.html for more info
 
