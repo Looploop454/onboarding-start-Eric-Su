@@ -1,3 +1,4 @@
+yaml_version: 6
 title: "ASIC Onboarding Project - Eric Su"  
 author: "Eric Su"  
 description: "SPI-controlled PWM peripheral for Tiny Tapeout."  
@@ -39,4 +40,4 @@ pinout:
   uio[6]: "OUT_E"
   uio[7]: "OUT_F"
 
-  yaml_version: 6
+  
