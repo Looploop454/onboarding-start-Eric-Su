@@ -1,9 +1,9 @@
 title: "ASIC Onboarding Project - Eric Su"  
 author: "Eric Su"  
 description: "SPI-controlled PWM peripheral for Tiny Tapeout."  
-top_module: "tt_um_uwasic_onboarding_your_name"  # Match your top module name  
+top_module: "tt_um_uwasic_onboarding_eric_su"  # Match your top module name  
 source_files:  
-  - "spi peripheral"
+  - spi_peripheral.v
   - pwm_peripheral.v  
   - project.v
 
