@@ -1,5 +1,5 @@
 # YAML spec version
-yaml_version: 1
+yaml_version: 6
 
 project:
   # Human-friendly project name
