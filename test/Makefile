@@ -1,4 +1,4 @@
-PROJECT_SOURCES = project.v pwm_peripheral.v "spi_peripheral.v"
+PROJECT_SOURCES = project.v pwm_peripheral.v spi_peripheral.v
 # Makefile
 # See https://docs.cocotb.org/en/stable/quickstart.html for more info
 
