@@ -1,35 +1,28 @@
-# YAML spec version
 yaml_version: 6
 
 project:
-  # Human-friendly project name
   name: "ASIC Onboarding Project - Eric Su"
-  # Top-level Verilog module name (must match project.v)
   top_module: "tt_um_uwasic_onboarding_eric_su"
-  # List of your RTL source files, relative to src/
   source_files:
     - spi_peripheral.v
     - pwm_peripheral.v
     - project.v
 
-# Who you are
+
 author: "Eric Su"
-# Short description of the design
-description: "SPI-controlled PWM peripheral for Tiny Tapeout."
 
-# (Optional) Pinout documentation for board-level mapping
-pinout:
-  # SPI interface on ui[]
-  ui[0]:  "SCLK"    # SPI clock (Mode 0)
-  ui[1]:  "COPI"    # Master ➔ Peripheral data
-  ui[2]:  "nCS"     # Chip-select, active low
-  ui[3]:            # unused
-  ui[4]:            # unused
-  ui[5]:            # unused
-  ui[6]:            # unused
-  ui[7]:            # unused
+pin:
+  pin[0]: "IO_0"
+  pin[1]: "IO_1"
+  pin[2]: "IO_2"
+  pin[3]: "IO_3"
+  pin[4]: "IO_4"
+  pin[5]: "IO_5"
+  pin[6]: "IO_6"
+  pin[7]: "IO_7"
 
-  # Static/PWM outputs on uo[]
+# User static outputs on uo[]
+uo:
   uo[0]:  "OUT_0"
   uo[1]:  "OUT_1"
   uo[2]:  "OUT_2"
@@ -39,7 +32,8 @@ pinout:
   uo[6]:  "OUT_6"
   uo[7]:  "OUT_7"
 
-  # Static/PWM outputs on uio[]
+# Static/PWM outputs on uio[]
+uio:
   uio[0]: "OUT_8"
   uio[1]: "OUT_9"
   uio[2]: "OUT_A"
