@@ -1,7 +1,7 @@
 yaml_version: 6
 
 project:
-  name: "ASIC Onboarding Project - Eric Su"
+  title: "ASIC Onboarding Project - Eric Su"
   top_module: "tt_um_uwasic_onboarding_eric_su"
   source_files:
     - spi_peripheral.v
