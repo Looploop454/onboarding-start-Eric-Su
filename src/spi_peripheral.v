@@ -14,9 +14,7 @@ module spi_peripheral (
     output reg  [7:0]  pwm_duty_cycle    // duty (0x00=0%, 0xFF=100%)
 );
 
-  //------------------------------------------------------------------------
-  // CDC synchronizers (two-stage) for nCS, SCLK, COPI
-  //------------------------------------------------------------------------
+  //Clock Domain Crossing
     reg [1:0] cs_meta, cs_sync;
     reg [1:0] sclk_meta, sclk_sync;
     reg [1:0] copi_meta, copi_sync;
@@ -51,9 +49,7 @@ wire cs_i   = cs_sync[1];
 wire sclk_i = sclk_sync[1];
 wire copi_i = copi_sync[1];
 
-  //------------------------------------------------------------------------
-  // Edge detection
-  //------------------------------------------------------------------------
+//Edge detection logic
   reg prev_cs, prev_sclk;
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -68,9 +64,6 @@ wire copi_i = copi_sync[1];
   wire cs_falling  =  prev_cs & ~cs_i;
   wire sclk_rising = ~prev_sclk &  sclk_i;
 
-  //------------------------------------------------------------------------
-  // Shift-register & frame capture (16 bits)
-  //------------------------------------------------------------------------
   reg [4:0]  bit_count;
   reg [15:0] shift_reg;
   reg [15:0] rx_word;
@@ -85,14 +78,11 @@ wire copi_i = copi_sync[1];
     end else begin
       rx_word_valid <= 1'b0;
       if (cs_falling) begin
-        // start new transaction
         bit_count <= 5'd0;
         shift_reg <= 16'd0;
       end else if (!cs_i && sclk_rising) begin
-        // shift in next bit
         shift_reg <= (shift_reg << 1) | {15'b0, copi_i};
         if (bit_count == 5'd15) begin
-          // captured full 16-bit word
           rx_word       <= (shift_reg << 1) | {15'b0, copi_i};
           rx_word_valid <= 1'b1;
           bit_count     <= 5'd0;
@@ -103,9 +93,8 @@ wire copi_i = copi_sync[1];
     end
   end
 
-  //------------------------------------------------------------------------
-  // Register write logic (write-only)
-  //------------------------------------------------------------------------
+//Communication with the PWM module
+    
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       en_reg_out_7_0   <= 8'd0;
@@ -120,7 +109,7 @@ wire copi_i = copi_sync[1];
         7'd2: en_reg_pwm_7_0  <= rx_word[7:0];
         7'd3: en_reg_pwm_15_8 <= rx_word[7:0];
         7'd4: pwm_duty_cycle  <= rx_word[7:0];
-        default: ; // ignore other addresses
+        default: ; 
       endcase
     end
   end
