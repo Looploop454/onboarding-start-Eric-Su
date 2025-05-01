@@ -81,9 +81,9 @@ wire copi_i = copi_sync[1];
         bit_count <= 5'd0;
         shift_reg <= 16'd0;
       end else if (!cs_i && sclk_rising) begin
-        shift_reg <= (shift_reg << 1) | {15'b0, copi_i};
+        shift_reg <= { shift_reg[14:0], copi_i };
         if (bit_count == 5'd15) begin
-          rx_word       <= (shift_reg << 1) | {15'b0, copi_i};
+          rx_word       <= { shift_reg[14:0], copi_i };
           rx_word_valid <= 1'b1;
           bit_count     <= 5'd0;
         end else begin
