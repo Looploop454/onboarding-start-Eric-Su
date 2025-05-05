@@ -160,16 +160,16 @@ async def test_spi(dut):
 @cocotb.test()
 async def test_pwm_freq(dut):
     # Verify PWM frequency = 3 kHz ±1%
+    # Some initialization code
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
-    # Reset and enable SPI interface
     dut.ena.value = 1
     dut.ui_in.value = ui_in_logicarray(1, 0, 0)
     dut.rst_n.value = 0
-    
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
-    # Enable PWM output and mode (OE + PWM_EN) 
+
+    # Enable PWM output and mode (OE + PWM_EN), turns on bits 0 and 1
     await send_spi_transaction(dut, 1, 0x02, 0x03)
     # Set 50% duty cycle
     await send_spi_transaction(dut, 1, 0x04, 0x80)
@@ -181,6 +181,7 @@ async def test_pwm_freq(dut):
     await RisingEdge(dut.uo_out)
     t2 = cocotb.utils.get_sim_time(units="ns")
 
+    #calculate frequency and asserts precision
     period_ns = t2 - t1
     freq_hz = 1e9 / period_ns
     freq_khz = freq_hz / 1e3
@@ -197,16 +198,17 @@ async def test_pwm_freq(dut):
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    """Verify PWM duty cycles at 0%, 50%, and 100% ±1%."""
+    #Verify PWM duty cycles at 0%, 50%, and 100% ±1%.
+    #Initialization code
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
-
     dut.ena.value     = 1
     dut.ui_in.value  = ui_in_logicarray(1, 0, 0)
     dut.rst_n.value  = 0
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value  = 1
     await ClockCycles(dut.clk, 5)
-
+    
+    #activation for SPI
     await send_spi_transaction(dut, 1, 0x02, 0x03)
     await ClockCycles(dut.clk, 100)
 
@@ -242,7 +244,7 @@ async def test_pwm_duty(dut):
             t_f = cocotb.utils.get_sim_time(units="ns")
             await RisingEdge(dut.uo_out)
             t2  = cocotb.utils.get_sim_time(units="ns")
-
+            # Calculate the duty cycle given parameters
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
             measured  = high_ns/period_ns*100.0
