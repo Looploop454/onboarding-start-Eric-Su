@@ -171,8 +171,6 @@ async def test_pwm_freq(dut):
 
     # Enable PWM mode, turns on bits 0 and 1
     await send_spi_transaction(dut, 1, 0x02, 0x03)
-    # Enable output driver for channel 0
-    await send_spi_transaction(dut, 1, 0x00, 0x01)
     # Set 50% duty cycle
     await send_spi_transaction(dut, 1, 0x04, 0x80)
     await ClockCycles(dut.clk, 100)
@@ -180,13 +178,9 @@ async def test_pwm_freq(dut):
     # Measures time between two rising edges, added failsafe for timeouts
     try:
         await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t1 = cocotb.utils.get_sim_time(units="ns")
-    except SimTimeoutError:
-        raise TestFailure("Timed out waiting for first PWM rising edge")
-
-    try:
+        t1 = get_sim_time(units="ns")
         await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t2 = cocotb.utils.get_sim_time(units="ns")
+        t2 = get_sim_time(units="ns")
     except SimTimeoutError:
         raise TestFailure("Timed out waiting for second PWM rising edge")
 
@@ -249,24 +243,19 @@ async def test_pwm_duty(dut):
         else:
             # Measure one full cycle and high time, if no logic change within 1ms times out
             await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t_r = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            t_r = get_sim_time(units="ns")
             await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t_f = await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+            t_f = get_sim_time(units="ns")
             await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t2  = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            t2  = get_sim_time(units="ns")
             
             # Calculate the duty cycle given parameters
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
             measured  = high_ns/period_ns*100.0
 
-            dut._log.info(
-                f"Measured duty = {measured:.2f}% "
-                f"(high {high_ns} ns / period {period_ns} ns)"
-            )
+            dut._log.info(f"Measured duty = {measured:.1f}%")
 
-            if abs(measured - exp) > tol:
-                raise TestFailure(
-                    f"Duty out of tolerance: got {measured:.2f}% "
-                    f"expected {exp}% ±{tol}%"
-                )
+            if abs(measured - exp) > 1.0:
+                raise TestFailure(f"Duty {measured:.1f}% ≠ {exp:.1f}% ±1%")
+    dut._log.info("PWM Duty test completed successfully")
