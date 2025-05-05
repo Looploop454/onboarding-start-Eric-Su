@@ -248,12 +248,13 @@ async def test_pwm_duty(dut):
 
         else:
             # Measure one full cycle and high time, if no logic change within 1ms times out
-            try:
-                t_r = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-                t_f = await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
-                t2  = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            except SimTimeoutError:
-                raise TestFailure("Timed out waiting for PWM transition during duty measurement")
+            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            t_r = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            t_f = await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            t2  = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            
             # Calculate the duty cycle given parameters
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
