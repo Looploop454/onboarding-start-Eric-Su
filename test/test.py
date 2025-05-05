@@ -153,109 +153,89 @@ async def test_spi(dut):
 
 
 
-
-
-
-
 @cocotb.test()
 async def test_pwm_freq(dut):
-    # Verify PWM frequency = 3 kHz ±1%
-    # Some initialization code
+    """Verify PWM = 3 kHz ±1%."""
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
-    dut.ena.value = 1
-    dut.ui_in.value = ui_in_logicarray(1, 0, 0)
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 5)
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 5)
-
-    # Enable PWM mode, turns on bits 0 and 1
-    await send_spi_transaction(dut, 1, 0x02, 0x03)
-    # Set 50% duty cycle
-    await send_spi_transaction(dut, 1, 0x04, 0x80)
-    await ClockCycles(dut.clk, 100)
-
-    # Measures time between two rising edges, added failsafe for timeouts
-    try:
-        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t1 = get_sim_time(units="ns")
-        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t2 = get_sim_time(units="ns")
-    except SimTimeoutError:
-        raise TestFailure("Timed out waiting for second PWM rising edge")
-
-    #calculate frequency and asserts precision
-    period_ns = t2 - t1
-    freq_khz  = 1e6 / period_ns
-    dut._log.info(f"Measured PWM freq = {freq_khz:.3f} kHz")
-    if not (2970 <= freq_khz <= 3030):
-        raise TestFailure(f"PWM frequency out of tolerance: {freq_khz:.3f} kHz")
-    dut._log.info("PWM Frequency test completed successfully")
-
-
-
-
-
-
-
-
-
-@cocotb.test()
-async def test_pwm_duty(dut):
-    #Verify PWM duty cycles at 0%, 50%, and 100% ±1%.
-    #Initialization code
-    cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
-    dut.ena.value     = 1
-    dut.ui_in.value  = ui_in_logicarray(1, 0, 0)
+    dut.ena.value    = 1
+    dut.ui_in.value  = ui_in_logicarray(1,0,0)
     dut.rst_n.value  = 0
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value  = 1
     await ClockCycles(dut.clk, 5)
-    
-    #activation for SPI
+
+    # Turn on bits 1 and 0
     await send_spi_transaction(dut, 1, 0x02, 0x03)
+    # 50% load to toggle SPI
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
     await ClockCycles(dut.clk, 100)
 
-    tests = [(0x00, 0.0), (0x80, 50.0), (0xFF, 100.0)]
-    tol   = 1.0  # ±1%
+    try:
+        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+        t1 = get_sim_time(units="ns")           
+        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+        t2 = get_sim_time(units="ns")         
+    except SimTimeoutError:
+        raise TestFailure("No PWM rising edges seen; check control writes")
+
+    period_ns = t2 - t1
+    freq_khz  = 1e6 / period_ns
+    dut._log.info(f"Measured PWM freq = {freq_khz:.3f} kHz")
+    if not (2970 <= freq_khz <= 3030):
+        raise TestFailure(f"Freq out of tolerance: {freq_khz:.3f} kHz")
+    dut._log.info("PWM Frequency OK")
+
+
+@cocotb.test()
+async def test_pwm_duty(dut):
+    """Verify PWM duty = 0%, 50%, 100% ±1%."""
+    cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
+    dut.ena.value    = 1
+    dut.ui_in.value  = ui_in_logicarray(1,0,0)
+    dut.rst_n.value  = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value  = 1
+    await ClockCycles(dut.clk, 5)
+
+    #Turn on bits 1 and 0
+    await send_spi_transaction(dut, 1, 0x02, 0x03)
+    await ClockCycles(dut.clk, 100)
+    tests = [(0x00,   0.0), (0x80,  50.0), (0xFF, 100.0)]
+    tol   = 1.0
 
     for val, exp in tests:
-        dut._log.info(f"Setting duty register = 0x{val:02X} → {exp}%")
+        dut._log.info(f"Setting duty = 0x{val:02X} ({exp:.1f}%)")
         await send_spi_transaction(dut, 1, 0x04, val)
         await ClockCycles(dut.clk, 100)
 
         if exp == 0.0:
-            # Expect no rising edge for ~1 ms
+            # Never supposed to rise on 0.0
             try:
-                await with_timeout(RisingEdge(dut.uo_out), 1, 'ms')
-                raise TestFailure("Duty=0%: pwm_out went high")
+                await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+                raise TestFailure("Duty=0% went high")
             except SimTimeoutError:
-                dut._log.info("Duty=0%: stayed low")
-
+                dut._log.info("0% stayed low")
         elif exp == 100.0:
-            # Expect no falling edge for ~1 ms
+            # Never supposed to fall on 100.0
             try:
-                await with_timeout(FallingEdge(dut.uo_out), 1, 'ms')
-                raise TestFailure("Duty=100%: pwm_out went low")
+                await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+                raise TestFailure("Duty=100% went low")
             except SimTimeoutError:
-                dut._log.info("Duty=100%: stayed high")
-
+                dut._log.info("100% stayed high")
         else:
-            # Measure one full cycle and high time, if no logic change within 1ms times out
             await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t_r = get_sim_time(units="ns")
+            t_r = get_sim_time(units="ns")       
+            await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+            t_f = get_sim_time(units="ns")      
             await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t_f = get_sim_time(units="ns")
-            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t2  = get_sim_time(units="ns")
-            
-            # Calculate the duty cycle given parameters
+            t2  = get_sim_time(units="ns")        #
+
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
             measured  = high_ns/period_ns*100.0
-
             dut._log.info(f"Measured duty = {measured:.1f}%")
 
-            if abs(measured - exp) > 1.0:
-                raise TestFailure(f"Duty {measured:.1f}% ≠ {exp:.1f}% ±1%")
-    dut._log.info("PWM Duty test completed successfully")
+            if abs(measured - exp) > tol:
+                raise TestFailure(f"Duty {measured:.1f}% ≠ {exp:.1f}% ±{tol}%")
+
+    dut._log.info("PWM Duty test OK")
