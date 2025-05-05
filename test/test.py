@@ -175,19 +175,27 @@ async def test_pwm_freq(dut):
     await send_spi_transaction(dut, 1, 0x04, 0x80)
     await ClockCycles(dut.clk, 100)
 
-    # Measure two rising edges
-    await RisingEdge(dut.uo_out)
-    t1 = cocotb.utils.get_sim_time(units="ns")
-    await RisingEdge(dut.uo_out)
-    t2 = cocotb.utils.get_sim_time(units="ns")
+    # Measures time between two rising edges, added failsafe for timeouts
+    try:
+        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+        t1 = cocotb.utils.get_sim_time(units="ns")
+    except SimTimeoutError:
+        raise TestFailure("Timed out waiting for first PWM rising edge")
+
+    try:
+        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+        t2 = cocotb.utils.get_sim_time(units="ns")
+    except SimTimeoutError:
+        raise TestFailure("Timed out waiting for second PWM rising edge")
 
     #calculate frequency and asserts precision
     period_ns = t2 - t1
-    freq_hz = 1e9 / period_ns
-    freq_khz = freq_hz / 1e3
+    freq_khz  = 1e6 / period_ns
     dut._log.info(f"Measured PWM freq = {freq_khz:.3f} kHz")
-    assert 2970 <= freq_khz <= 3030, f"PWM frequency out of tolerance: {freq_khz:.3f} kHz"
+    if not (2970 <= freq_khz <= 3030):
+        raise TestFailure(f"PWM frequency out of tolerance: {freq_khz:.3f} kHz")
     dut._log.info("PWM Frequency test completed successfully")
+
 
 
 
@@ -237,13 +245,13 @@ async def test_pwm_duty(dut):
                 dut._log.info("Duty=100%: stayed high")
 
         else:
-            # Measure one full cycle and high time
-            await RisingEdge(dut.uo_out)
-            t_r = cocotb.utils.get_sim_time(units="ns")
-            await FallingEdge(dut.uo_out)
-            t_f = cocotb.utils.get_sim_time(units="ns")
-            await RisingEdge(dut.uo_out)
-            t2  = cocotb.utils.get_sim_time(units="ns")
+            # Measure one full cycle and high time, if no logic change within 1ms times out
+            try:
+                t_r = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+                t_f = await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+                t2  = await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+            except SimTimeoutError:
+                raise TestFailure("Timed out waiting for PWM transition during duty measurement")
             # Calculate the duty cycle given parameters
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
