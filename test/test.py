@@ -3,10 +3,11 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
-from cocotb.triggers import ClockCycles
+from cocotb.triggers    import RisingEdge, FallingEdge, Timer, with_timeout, ClockCycles
 from cocotb.types import Logic
 from cocotb.types import LogicArray
+from cocotb.result      import TestFailure, SimTimeoutError
+from cocotb.utils import get_sim_time
 
 async def await_half_sclk(dut):
     """Wait for the SCLK signal to go high or low."""
@@ -149,13 +150,110 @@ async def test_spi(dut):
 
     dut._log.info("SPI test completed successfully")
 
+
+
+
+
+
+
+
 @cocotb.test()
 async def test_pwm_freq(dut):
-    # Write your test here
+    # Verify PWM frequency = 3 kHz ±1%
+    cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
+    # Reset and enable SPI interface
+    dut.ena.value = 1
+    dut.ui_in.value = ui_in_logicarray(1, 0, 0)
+    dut.rst_n.value = 0
+    
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+    # Enable PWM output and mode (OE + PWM_EN) 
+    await send_spi_transaction(dut, 1, 0x02, 0x03)
+    # Set 50% duty cycle
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+    await ClockCycles(dut.clk, 100)
+
+    # Measure two rising edges
+    await RisingEdge(dut.uo_out)
+    t1 = cocotb.utils.get_sim_time(units="ns")
+    await RisingEdge(dut.uo_out)
+    t2 = cocotb.utils.get_sim_time(units="ns")
+
+    period_ns = t2 - t1
+    freq_hz = 1e9 / period_ns
+    freq_khz = freq_hz / 1e3
+    dut._log.info(f"Measured PWM freq = {freq_khz:.3f} kHz")
+    assert 2970 <= freq_khz <= 3030, f"PWM frequency out of tolerance: {freq_khz:.3f} kHz"
     dut._log.info("PWM Frequency test completed successfully")
+
+
+
+
+
+
 
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    # Write your test here
-    dut._log.info("PWM Duty Cycle test completed successfully")
+    """Verify PWM duty cycles at 0%, 50%, and 100% ±1%."""
+    cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
+
+    dut.ena.value     = 1
+    dut.ui_in.value  = ui_in_logicarray(1, 0, 0)
+    dut.rst_n.value  = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value  = 1
+    await ClockCycles(dut.clk, 5)
+
+    await send_spi_transaction(dut, 1, 0x02, 0x03)
+    await ClockCycles(dut.clk, 100)
+
+    tests = [(0x00, 0.0), (0x80, 50.0), (0xFF, 100.0)]
+    tol   = 1.0  # ±1%
+
+    for val, exp in tests:
+        dut._log.info(f"Setting duty register = 0x{val:02X} → {exp}%")
+        await send_spi_transaction(dut, 1, 0x04, val)
+        await ClockCycles(dut.clk, 100)
+
+        if exp == 0.0:
+            # Expect no rising edge for ~1 ms
+            try:
+                await with_timeout(RisingEdge(dut.uo_out), 1, 'ms')
+                raise TestFailure("Duty=0%: pwm_out went high")
+            except SimTimeoutError:
+                dut._log.info("Duty=0%: stayed low")
+
+        elif exp == 100.0:
+            # Expect no falling edge for ~1 ms
+            try:
+                await with_timeout(FallingEdge(dut.uo_out), 1, 'ms')
+                raise TestFailure("Duty=100%: pwm_out went low")
+            except SimTimeoutError:
+                dut._log.info("Duty=100%: stayed high")
+
+        else:
+            # Measure one full cycle and high time
+            await RisingEdge(dut.uo_out)
+            t_r = cocotb.utils.get_sim_time(units="ns")
+            await FallingEdge(dut.uo_out)
+            t_f = cocotb.utils.get_sim_time(units="ns")
+            await RisingEdge(dut.uo_out)
+            t2  = cocotb.utils.get_sim_time(units="ns")
+
+            high_ns   = t_f - t_r
+            period_ns = t2  - t_r
+            measured  = high_ns/period_ns*100.0
+
+            dut._log.info(
+                f"Measured duty = {measured:.2f}% "
+                f"(high {high_ns} ns / period {period_ns} ns)"
+            )
+
+            if abs(measured - exp) > tol:
+                raise TestFailure(
+                    f"Duty out of tolerance: got {measured:.2f}% "
+                    f"expected {exp}% ±{tol}%"
+                )
