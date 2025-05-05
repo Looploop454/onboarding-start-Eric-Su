@@ -155,7 +155,7 @@ async def test_spi(dut):
 
 @cocotb.test()
 async def test_pwm_freq(dut):
-    """Verify PWM = 3 kHz ±1%."""
+    """Verify PWM = 3 kHz ±1% on uo_out[0]."""
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
     dut.ena.value    = 1
     dut.ui_in.value  = ui_in_logicarray(1,0,0)
@@ -164,18 +164,22 @@ async def test_pwm_freq(dut):
     dut.rst_n.value  = 1
     await ClockCycles(dut.clk, 5)
 
-    # Turn on bits 1 and 0
-    await send_spi_transaction(dut, 1, 0x00, 0x01)
-    # 50% load to toggle SPI
-    await send_spi_transaction(dut, 1, 0x02, 0x01)
-    await send_spi_transaction(dut, 1, 0x04, 0x80)
+    # Enable static output on bit 0
+    await send_spi_transaction(dut, 1, 0x00, 0x01)      
+
+    # Load 50% duty BEFORE enabling PWM
+    await send_spi_transaction(dut, 1, 0x04, 0x80)      
+
+    # Now enable PWM on bit 0
+    await send_spi_transaction(dut, 1, 0x02, 0x01)      
+
     await ClockCycles(dut.clk, 100)
 
     try:
-        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t1 = get_sim_time(units="ns")           
-        await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-        t2 = get_sim_time(units="ns")         
+        await with_timeout(RisingEdge(dut.uo_out[0]), 1, "ms")  
+        t1 = get_sim_time(units="ns")
+        await with_timeout(RisingEdge(dut.uo_out[0]), 1, "ms")  
+        t2 = get_sim_time(units="ns")
     except SimTimeoutError:
         raise TestFailure("No PWM rising edges seen; check control writes")
 
@@ -189,7 +193,7 @@ async def test_pwm_freq(dut):
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    """Verify PWM duty = 0%, 50%, 100% ±1%."""
+    """Verify PWM duty = 0%, 50%, 100% ±1% on uo_out[0]."""
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
     dut.ena.value    = 1
     dut.ui_in.value  = ui_in_logicarray(1,0,0)
@@ -198,44 +202,48 @@ async def test_pwm_duty(dut):
     dut.rst_n.value  = 1
     await ClockCycles(dut.clk, 5)
 
-    #Turn on bits 1 and 0
-    await send_spi_transaction(dut, 1, 0x00, 0x01)
-    await send_spi_transaction(dut, 1, 0x02, 0x01)
+    # Enable static output once
+    await send_spi_transaction(dut, 1, 0x00, 0x01)      # <<< CHANGED
     await ClockCycles(dut.clk, 50)
-    tests = [(0x00, 0.0), (0x80,  50.0), (0xFF, 100.0)]
+
+    tests = [(0x00,   0.0), (0x80,  50.0), (0xFF, 100.0)]
     tol   = 1.0
 
     for val, exp in tests:
         dut._log.info(f"Setting duty = 0x{val:02X} ({exp:.1f}%)")
-        #Restart PWM signal, enable static output, change to new PWM duty load then re-enable PWM 
-        await send_spi_transaction(dut, 1, 0x04, val)
+
+        # Disable PWM so we can latch a fresh duty
+        await send_spi_transaction(dut, 1, 0x02, 0x00)  
+        # Load new duty
+        await send_spi_transaction(dut, 1, 0x04, val)   
+        # Re-enable PWM
+        await send_spi_transaction(dut, 1, 0x02, 0x01)  
+
         await ClockCycles(dut.clk, 100)
 
         if exp == 0.0:
-            # Never supposed to rise on 0.0
             try:
-                await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
+                await with_timeout(RisingEdge(dut.uo_out[0]), 1, "ms")  
                 raise TestFailure("Duty=0% went high")
             except SimTimeoutError:
                 dut._log.info("0% stayed low")
         elif exp == 100.0:
-            # Never supposed to fall on 100.0
             try:
-                await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
+                await with_timeout(FallingEdge(dut.uo_out[0]), 1, "ms") 
                 raise TestFailure("Duty=100% went low")
             except SimTimeoutError:
                 dut._log.info("100% stayed high")
         else:
-            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t_r = get_sim_time(units="ns")       
-            await with_timeout(FallingEdge(dut.uo_out), 1, "ms")
-            t_f = get_sim_time(units="ns")      
-            await with_timeout(RisingEdge(dut.uo_out), 1, "ms")
-            t2  = get_sim_time(units="ns")        
+            await with_timeout(RisingEdge(dut.uo_out[0]), 1, "ms")      
+            t_r = get_sim_time(units="ns")
+            await with_timeout(FallingEdge(dut.uo_out[0]), 1, "ms")     
+            t_f = get_sim_time(units="ns")
+            await with_timeout(RisingEdge(dut.uo_out[0]), 1, "ms")      
+            t2  = get_sim_time(units="ns")
 
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
-            measured  = high_ns/period_ns*100.0
+            measured  = high_ns / period_ns * 100.0
             dut._log.info(f"Measured duty = {measured:.1f}%")
 
             if abs(measured - exp) > tol:
