@@ -166,9 +166,10 @@ async def test_pwm_freq(dut):
 
     # Turn on bits 1 and 0
     await send_spi_transaction(dut, 1, 0x00, 0x01)
-    await send_spi_transaction(dut, 1, 0x02, 0x01)
     # 50% load to toggle SPI
     await send_spi_transaction(dut, 1, 0x04, 0x80)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
+    
     await ClockCycles(dut.clk, 100)
 
     try:
@@ -199,16 +200,15 @@ async def test_pwm_duty(dut):
     await ClockCycles(dut.clk, 5)
 
     #Turn on bits 1 and 0
-    await send_spi_transaction(dut, 1, 0x02, 0x03)
-    await ClockCycles(dut.clk, 100)
-    tests = [(0x00,   0.0), (0x80,  50.0), (0xFF, 100.0)]
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await ClockCycles(dut.clk, 50)
+    tests = [(0x00, 0.0), (0x80,  50.0), (0xFF, 100.0)]
     tol   = 1.0
 
     for val, exp in tests:
         dut._log.info(f"Setting duty = 0x{val:02X} ({exp:.1f}%)")
         #Restart PWM signal, enable static output, change to new PWM duty load then re-enable PWM
         await send_spi_transaction(dut, 1, 0x02, 0x00)
-        await send_spi_transaction(dut, 1, 0x00, 0x01)
         await send_spi_transaction(dut, 1, 0x04, val)
         await send_spi_transaction(dut, 1, 0x02, 0x01)
         await ClockCycles(dut.clk, 100)
