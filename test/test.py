@@ -165,7 +165,7 @@ async def test_pwm_freq(dut):
     await ClockCycles(dut.clk, 5)
 
     # Turn on bits 1 and 0
-    await send_spi_transaction(dut, 1, 0x02, 0x03)
+    await send_spi_transaction(dut, 1, 0x03, 0x03)
     # 50% load to toggle SPI
     await send_spi_transaction(dut, 1, 0x04, 0x80)
     await ClockCycles(dut.clk, 100)
@@ -198,7 +198,7 @@ async def test_pwm_duty(dut):
     await ClockCycles(dut.clk, 5)
 
     #Turn on bits 1 and 0
-    await send_spi_transaction(dut, 1, 0x02, 0x03)
+    await send_spi_transaction(dut, 1, 0x03, 0x03)
     await ClockCycles(dut.clk, 100)
     tests = [(0x00,   0.0), (0x80,  50.0), (0xFF, 100.0)]
     tol   = 1.0
