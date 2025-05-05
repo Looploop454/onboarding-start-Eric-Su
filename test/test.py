@@ -169,8 +169,10 @@ async def test_pwm_freq(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    # Enable PWM output and mode (OE + PWM_EN), turns on bits 0 and 1
+    # Enable PWM mode, turns on bits 0 and 1
     await send_spi_transaction(dut, 1, 0x02, 0x03)
+    # Enable output driver for channel 0
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
     # Set 50% duty cycle
     await send_spi_transaction(dut, 1, 0x04, 0x80)
     await ClockCycles(dut.clk, 100)
