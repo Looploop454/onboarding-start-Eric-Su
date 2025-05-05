@@ -164,49 +164,49 @@ async def test_pwm_freq(dut):
     await ClockCycles(dut.clk, 5)
 
     # 1) Enable static output on bit 0
-    await send_spi_transaction(dut, 1, 0x00, 0x01)             
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
     # 2) Load 50% duty BEFORE PWM enable
-    await send_spi_transaction(dut, 1, 0x04, 0x80)             
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
     # 3) Enable PWM on bit 0
-    await send_spi_transaction(dut, 1, 0x02, 0x01)             
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
 
     await ClockCycles(dut.clk, 100)
 
     # inline poll for first rising edge on uo_out[0]
-    deadline = get_sim_time(units="ns") + 1_000_000       
-    prev     = int(dut.uo_out.value) & 1                 
+    deadline = get_sim_time(units="ns") + 1_000_000
+    prev     = int(dut.uo_out.value) & 1
     t1       = None
     while get_sim_time(units="ns") < deadline:
         await RisingEdge(dut.clk)
-        curr = int(dut.uo_out.value) & 1                 
+        curr = int(dut.uo_out.value) & 1
         if prev == 0 and curr == 1:
-            t1 = get_sim_time(units="ns")             
-            break                                       
-        prev = curr                                     
-    if t1 is None:                                      
+            t1 = get_sim_time(units="ns")
+            break
+        prev = curr
+    if t1 is None:
         raise TestFailure("Timed out waiting for first rising uo_out[0]")
 
     # inline poll for second rising edge on uo_out[0]
-    deadline = get_sim_time(units="ns") + 1_000_000       
-    prev     = curr                                      
-    t2       = None                                      
-    while get_sim_time(units="ns") < deadline:         
+    deadline = get_sim_time(units="ns") + 1_000_000
+    prev     = curr
+    t2       = None
+    while get_sim_time(units="ns") < deadline:
         await RisingEdge(dut.clk)
-        curr = int(dut.uo_out.value) & 1                 
+        curr = int(dut.uo_out.value) & 1
         if prev == 0 and curr == 1:
-            t2 = get_sim_time(units="ns")             
-            break                                       
-        prev = curr                                     
-    if t2 is None:                                      
+            t2 = get_sim_time(units="ns")
+            break
+        prev = curr
+    if t2 is None:
         raise TestFailure("Timed out waiting for second rising uo_out[0]")
 
     period_ns = t2 - t1
     freq_khz  = 1e6 / period_ns
     dut._log.info(f"Measured PWM freq = {freq_khz:.3f} kHz")
-    if not (2970 <= freq_khz <= 3030):
+    # ±1% tolerance in kHz: 3.00 ±0.03 => [2.97, 3.03]
+    if not (2.97 <= freq_khz <= 3.03):                     
         raise TestFailure(f"Freq out of tolerance: {freq_khz:.3f} kHz")
     dut._log.info("PWM Frequency OK")
-
 
 @cocotb.test()
 async def test_pwm_duty(dut):
@@ -220,8 +220,8 @@ async def test_pwm_duty(dut):
     await ClockCycles(dut.clk, 5)
 
     # Enable static output and PWM once
-    await send_spi_transaction(dut, 1, 0x00, 0x01)             
-    await send_spi_transaction(dut, 1, 0x02, 0x01)             
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
     await ClockCycles(dut.clk, 50)
 
     tests = [(0x00,  0.0), (0x80,  50.0), (0xFF, 100.0)]
@@ -231,88 +231,83 @@ async def test_pwm_duty(dut):
         dut._log.info(f"Setting duty = 0x{val:02X} ({exp:.1f}%)")
 
         # reload fresh duty
-        await send_spi_transaction(dut, 1, 0x02, 0x00)          
-        await send_spi_transaction(dut, 1, 0x04, val)           
-        await send_spi_transaction(dut, 1, 0x02, 0x01)          
+        await send_spi_transaction(dut, 1, 0x02, 0x00)
+        await send_spi_transaction(dut, 1, 0x04, val)
+        await send_spi_transaction(dut, 1, 0x02, 0x01)
 
         await ClockCycles(dut.clk, 100)
 
-        # handle 0% case
         if exp == 0.0:
-            deadline = get_sim_time(units="ns") + 1_000_000   
-            prev     = int(dut.uo_out.value) & 1              
-            seen     = False                                  
-            while get_sim_time(units="ns") < deadline:      
-                await RisingEdge(dut.clk)                     
-                curr = int(dut.uo_out.value) & 1              
-                if prev == 0 and curr == 1:                  
-                    seen = True                              
-                    break                                   
-                prev = curr                                 
-            if seen:                                         
-                raise TestFailure("Duty=0% unexpectedly went high")   
+            # 0% should stay low
+            deadline = get_sim_time(units="ns") + 1_000_000
+            prev     = int(dut.uo_out.value) & 1
+            seen     = False
+            while get_sim_time(units="ns") < deadline:
+                await RisingEdge(dut.clk)
+                curr = int(dut.uo_out.value) & 1
+                if prev == 0 and curr == 1:
+                    seen = True
+                    break
+                prev = curr
+            if seen:
+                raise TestFailure("Duty=0% unexpectedly went high")
             dut._log.info("0% stayed low")
-
-        # handle 100% case
         elif exp == 100.0:
-            deadline = get_sim_time(units="ns") + 1_000_000   
-            prev     = int(dut.uo_out.value) & 1              
-            seen     = False                                  
-            while get_sim_time(units="ns") < deadline:      
-                await RisingEdge(dut.clk)                     
-                curr = int(dut.uo_out.value) & 1              
-                if prev == 1 and curr == 0:                  
-                    seen = True                              
-                    break                                   
-                prev = curr                                 
-            if seen:                                         
-                raise TestFailure("Duty=100% unexpectedly went low")   
+            # 100% should stay high
+            deadline = get_sim_time(units="ns") + 1_000_000
+            prev     = int(dut.uo_out.value) & 1
+            seen     = False
+            while get_sim_time(units="ns") < deadline:
+                await RisingEdge(dut.clk)
+                curr = int(dut.uo_out.value) & 1
+                if prev == 1 and curr == 0:
+                    seen = True
+                    break
+                prev = curr
+            if seen:
+                raise TestFailure("Duty=100% unexpectedly went low")
             dut._log.info("100% stayed high")
-
-        # handle mid-range
         else:
-            # first rising
-            deadline = get_sim_time(units="ns") + 1_000_000   
-            prev     = int(dut.uo_out.value) & 1              
-            t_r      = None                                  
-            while get_sim_time(units="ns") < deadline:     
-                await RisingEdge(dut.clk)                   
-                curr = int(dut.uo_out.value) & 1              
-                if prev == 0 and curr == 1:                  
-                    t_r = get_sim_time(units="ns")       
-                    break                                   
-                prev = curr                                 
-            if t_r is None:                                  
-                raise TestFailure("Timeout waiting for rising edge")   
-
+            # measure mid-range duty
+            # rising
+            deadline = get_sim_time(units="ns") + 1_000_000
+            prev     = int(dut.uo_out.value) & 1
+            t_r      = None
+            while get_sim_time(units="ns") < deadline:
+                await RisingEdge(dut.clk)
+                curr = int(dut.uo_out.value) & 1
+                if prev == 0 and curr == 1:
+                    t_r = get_sim_time(units="ns")
+                    break
+                prev = curr
+            if t_r is None:
+                raise TestFailure("Timeout waiting for rising edge")
             # falling
-            deadline = get_sim_time(units="ns") + 1_000_000   
-            prev     = curr                                  
-            t_f      = None                                  
-            while get_sim_time(units="ns") < deadline:     
-                await RisingEdge(dut.clk)                   
-                curr = int(dut.uo_out.value) & 1              
-                if prev == 1 and curr == 0:                  
-                    t_f = get_sim_time(units="ns")       
-                    break                                   
-                prev = curr                                 
-            if t_f is None:                                  
-                raise TestFailure("Timeout waiting for falling edge")   
-
+            deadline = get_sim_time(units="ns") + 1_000_000
+            prev     = curr
+            t_f      = None
+            while get_sim_time(units="ns") < deadline:
+                await RisingEdge(dut.clk)
+                curr = int(dut.uo_out.value) & 1
+                if prev == 1 and curr == 0:
+                    t_f = get_sim_time(units="ns")
+                    break
+                prev = curr
+            if t_f is None:
+                raise TestFailure("Timeout waiting for falling edge")
             # next rising
-            deadline = get_sim_time(units="ns") + 1_000_000   
-            prev     = curr                                  
-            t2       = None                                  
-            while get_sim_time(units="ns") < deadline:     
-                await RisingEdge(dut.clk)                   
-                curr = int(dut.uo_out.value) & 1              
-                if prev == 0 and curr == 1:                  
-                    t2 = get_sim_time(units="ns")        
-                    break                                   
-                prev = curr                                 
-            if t2 is None:                                   
-                raise TestFailure("Timeout waiting for second rising edge")   
-
+            deadline = get_sim_time(units="ns") + 1_000_000
+            prev     = curr
+            t2       = None
+            while get_sim_time(units="ns") < deadline:
+                await RisingEdge(dut.clk)
+                curr = int(dut.uo_out.value) & 1
+                if prev == 0 and curr == 1:
+                    t2 = get_sim_time(units="ns")
+                    break
+                prev = curr
+            if t2 is None:
+                raise TestFailure("Timeout waiting for second rising edge")
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
             measured  = high_ns/period_ns*100.0
