@@ -151,10 +151,10 @@ async def test_spi(dut):
     dut._log.info("SPI test completed successfully")
 
 
-
 @cocotb.test()
 async def test_pwm_freq(dut):
-    """Verify PWM = 3 kHz ±1% on uo_out[0]."""
+    #Verify PWM = 3 kHz ±1% on uo_out[0].
+    #Initiation
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
     dut.ena.value    = 1
     dut.ui_in.value  = ui_in_logicarray(1,0,0)
@@ -163,24 +163,24 @@ async def test_pwm_freq(dut):
     dut.rst_n.value  = 1
     await ClockCycles(dut.clk, 5)
 
-    # 1) Enable static output on bit 0
+    # Enable static output on bit 0
     await send_spi_transaction(dut, 1, 0x00, 0x01)
-    # 2) Load 50% duty BEFORE PWM enable
+    # Load 50% duty BEFORE PWM enable
     await send_spi_transaction(dut, 1, 0x04, 0x80)
-    # 3) Enable PWM on bit 0
+    # Enable PWM on bit 0
     await send_spi_transaction(dut, 1, 0x02, 0x01)
 
     await ClockCycles(dut.clk, 100)
 
-    # inline poll for first rising edge on uo_out[0]
-    deadline = get_sim_time(units="ns") + 1_000_000
+    # Inline poll for first rising edge on uo_out[0]
+    deadline = get_sim_time(units="ns") + 1000000
     prev     = int(dut.uo_out.value) & 1
     t1       = None
-
-
+    # Timeout loop
     while get_sim_time(units="ns") < deadline:
         await RisingEdge(dut.clk)
         curr = int(dut.uo_out.value) & 1
+        # Check for rising edge
         if prev == 0 and curr == 1:
             t1 = get_sim_time(units="ns")
             break
@@ -188,15 +188,16 @@ async def test_pwm_freq(dut):
     if t1 is None:
         raise TestFailure("Timed out waiting for first rising uo_out[0]")
 
-    # inline poll for second rising edge on uo_out[0]
-    deadline = get_sim_time(units="ns") + 1_000_000
+    # Inline poll for second rising edge on uo_out[0]
+    deadline = get_sim_time(units="ns") + 1000000
     prev     = curr
     t2       = None
 
-    
+    # Timeout loop
     while get_sim_time(units="ns") < deadline:
         await RisingEdge(dut.clk)
         curr = int(dut.uo_out.value) & 1
+        # Check for second rising edge
         if prev == 0 and curr == 1:
             t2 = get_sim_time(units="ns")
             break
@@ -214,7 +215,8 @@ async def test_pwm_freq(dut):
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    """Verify PWM duty = 0%, 50%, 100% ±1% on uo_out[0]."""
+    #Verify PWM duty = 0%, 50%, 100% ±1% on uo_out[0].
+    # Initiation
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
     dut.ena.value    = 1
     dut.ui_in.value  = ui_in_logicarray(1,0,0)
@@ -228,13 +230,14 @@ async def test_pwm_duty(dut):
     await send_spi_transaction(dut, 1, 0x02, 0x01)
     await ClockCycles(dut.clk, 50)
 
-    tests = [(0x00,  0.0), (0x80,  50.0), (0xFF, 100.0)]
+    # Testing different duty loads
+    tests = [(0x00,0.0), (0x80,50.0), (0xFF,100.0)]
     tol   = 1.0
-    #
+    
     for val, exp in tests:
         dut._log.info(f"Setting duty = 0x{val:02X} ({exp:.1f}%)")
 
-        # reload fresh duty
+        # Reload fresh duty
         await send_spi_transaction(dut, 1, 0x02, 0x00)
         await send_spi_transaction(dut, 1, 0x04, val)
         await send_spi_transaction(dut, 1, 0x02, 0x01)
@@ -243,7 +246,7 @@ async def test_pwm_duty(dut):
 
         if exp == 0.0:
             # 0% should stay low
-            deadline = get_sim_time(units="ns") + 1_000_000
+            deadline = get_sim_time(units="ns") + 1000000
             prev     = int(dut.uo_out.value) & 1
             seen     = False
             while get_sim_time(units="ns") < deadline:
@@ -260,7 +263,7 @@ async def test_pwm_duty(dut):
 
         elif exp == 100.0:
             # 100% should stay high
-            deadline = get_sim_time(units="ns") + 1_000_000
+            deadline = get_sim_time(units="ns") + 1000000
             prev     = int(dut.uo_out.value) & 1
             seen     = False
             while get_sim_time(units="ns") < deadline:
@@ -278,9 +281,11 @@ async def test_pwm_duty(dut):
         else:
             # measure mid-range duty
             # rising
-            deadline = get_sim_time(units="ns") + 1_000_000
+            deadline = get_sim_time(units="ns") + 1000000
             prev     = int(dut.uo_out.value) & 1
             t_r      = None
+
+            # Timeout loops in the event of no edge detected
             while get_sim_time(units="ns") < deadline:
                 await RisingEdge(dut.clk)
                 curr = int(dut.uo_out.value) & 1
@@ -291,7 +296,7 @@ async def test_pwm_duty(dut):
             if t_r is None:
                 raise TestFailure("Timeout waiting for rising edge")
             # falling
-            deadline = get_sim_time(units="ns") + 1_000_000
+            deadline = get_sim_time(units="ns") + 1000000
             prev     = curr
             t_f      = None
 
@@ -306,7 +311,7 @@ async def test_pwm_duty(dut):
             if t_f is None:
                 raise TestFailure("Timeout waiting for falling edge")
             # next rising
-            deadline = get_sim_time(units="ns") + 1_000_000
+            deadline = get_sim_time(units="ns") + 1000000
             prev     = curr
             t2       = None
 
@@ -320,10 +325,14 @@ async def test_pwm_duty(dut):
                 prev = curr
             if t2 is None:
                 raise TestFailure("Timeout waiting for second rising edge")
+            
+            # Duty load calculation
             high_ns   = t_f - t_r
             period_ns = t2  - t_r
             measured  = high_ns/period_ns*100.0
             dut._log.info(f"Measured duty = {measured:.1f}%")
+
+            # Range verification
             if abs(measured - exp) > tol:
                 raise TestFailure(f"Duty {measured:.1f}% ≠ {exp:.1f}% ±{tol}%")
 
