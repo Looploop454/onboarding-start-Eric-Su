@@ -387,7 +387,7 @@ async def test_pwm_freq(dut):
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    """Verify PWM duty = 0%, 50%, 100% ±1% on uo_out[0]."""
+    """"""Verify PWM duty = 0%, 50%, 100% ±1% on uo_out[0].""""""
     cocotb.start_soon(Clock(dut.clk, 100, units="ns").start())
     dut.ena.value    = 1
     dut.ui_in.value  = ui_in_logicarray(1,0,0)
